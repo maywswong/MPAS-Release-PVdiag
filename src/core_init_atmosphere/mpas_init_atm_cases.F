@@ -4514,8 +4514,12 @@ call mpas_log_write('Done with soil consistency check')
 
       if (allocated(maskslab)) deallocate(maskslab)
 
-      ! Freeze really cold ocean
-      where (sst < 271.0 .and. landmask == 0) xice = 1.0
+      ! Freeze really cold ocean: setting xice to 1.0 for sea-surface temperatures colder than 271K
+      ! has proved to produce too much seaice at high latitudes. The line below has been commented
+      ! out and setting xice to 1.0 for sea-surface temperatures colder than 100K is now moved to
+      ! the subroutine physics_init_seaice (in module mpas_atmphys_initialize_real.F).
+      ! Laura D. Fowler (laura@ucar.edu) / 2022-03-25.
+!     where (sst < 271.0 .and. landmask == 0) xice = 1.0
 
       ! Limit XICE to values between 0 and 1. Although the input meteorological field is between 0.
       ! and 1., interpolation to the MPAS grid can yield values of XiCE less than 0. and greater
