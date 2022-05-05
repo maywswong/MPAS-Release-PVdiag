@@ -528,7 +528,7 @@ module isobaric_diagnostics
         do iCell = 1, nCells
            w1 = (height(k,iCell)-height(k-1,iCell)) / (height(k+1,iCell)-height(k-1,iCell))
            w2 = (height(k+1,iCell)-height(k,iCell)) / (height(k+1,iCell)-height(k-1,iCell))
-           pressure2(k,iCell) = w1*pressure(k,iCell) + w2*pressure(k-1,iCell)
+           pressure2(k,iCell) = exp(w1*log(pressure(k,iCell)) + w2*log(pressure(k-1,iCell)))
         enddo
         enddo
         k = 1
@@ -538,7 +538,7 @@ module isobaric_diagnostics
            z2 = 0.5*(height(k+1,iCell)+height(k+2,iCell))
            w1 = (z0-z2)/(z1-z2)
            w2 = 1.-w1
-           pressure2(k,iCell) = w1*pressure(k,iCell)+w2*pressure(k+1,iCell)
+           pressure2(k,iCell) = exp(w1*log(pressure(k,iCell))+w2*log(pressure(k+1,iCell)))
         enddo
        
        !calculation of total pressure at cell vertices (at mass points):
@@ -688,9 +688,42 @@ module isobaric_diagnostics
         if(allocated(field_in)) deallocate(field_in)
         if(allocated(press_in)) deallocate(press_in)
        
-        if (NEED_W .or. NEED_HEIGHT) then
+        if (NEED_HEIGHT) then
            !interpolation to fixed pressure levels for fields located at cells centers and at vertical
            !velocity points:
+            if(.not.allocated(press_in)) allocate(press_in(nCells,nVertLevels))
+            do iCell = 1, nCells
+            do k = 1, nVertLevels
+               kk = nVertLevels+1-k
+               press_in(iCell,kk) = pressure(k,iCell)
+            enddo
+            enddo
+       
+            if(.not.allocated(field_in)) allocate(field_in(nCells,nVertLevels))
+            !... height:
+            do iCell = 1, nCells
+            do k = 1, nVertLevels
+               kk = nVertLevels+1-k
+               field_in(iCell,kk) = 0.5*(height(k,iCell)+height(k+1,iCell))
+            enddo
+            enddo
+            call interp_tofixed_pressure(nCells,nVertLevels,nIntP,press_in,field_in,press_interp,field_interp)
+            height_200hPa(1:nCells) = field_interp(1:nCells,1)
+            height_250hPa(1:nCells) = field_interp(1:nCells,2)
+            height_500hPa(1:nCells) = field_interp(1:nCells,3)
+            height_700hPa(1:nCells) = field_interp(1:nCells,4)
+            height_850hPa(1:nCells) = field_interp(1:nCells,5)
+            height_925hPa(1:nCells) = field_interp(1:nCells,6)
+           ! call mpas_log_write('--- end interpolate height:')
+        
+            if(allocated(field_in)) deallocate(field_in)
+            if(allocated(press_in)) deallocate(press_in)
+        end if
+       
+        if (NEED_W) then
+           !interpolation to fixed pressure levels for fields located at cells centers and at vertical
+           !velocity points:
+
             if(.not.allocated(press_in)) allocate(press_in(nCells,nVertLevelsP1))
             do iCell = 1, nCells
             do k = 1, nVertLevelsP1
@@ -700,22 +733,6 @@ module isobaric_diagnostics
             enddo
        
             if(.not.allocated(field_in)) allocate(field_in(nCells,nVertLevelsP1))
-            !... height:
-            do iCell = 1, nCells
-            do k = 1, nVertLevelsP1
-               kk = nVertLevelsP1+1-k
-               field_in(iCell,kk) = height(k,iCell)
-            enddo
-            enddo
-            call interp_tofixed_pressure(nCells,nVertLevelsP1,nIntP,press_in,field_in,press_interp,field_interp)
-            height_200hPa(1:nCells) = field_interp(1:nCells,1)
-            height_250hPa(1:nCells) = field_interp(1:nCells,2)
-            height_500hPa(1:nCells) = field_interp(1:nCells,3)
-            height_700hPa(1:nCells) = field_interp(1:nCells,4)
-            height_850hPa(1:nCells) = field_interp(1:nCells,5)
-            height_925hPa(1:nCells) = field_interp(1:nCells,6)
-           ! call mpas_log_write('--- end interpolate height:')
-        
            !... vertical velocity
             do iCell = 1, nCells
             do k = 1, nVertLevelsP1
