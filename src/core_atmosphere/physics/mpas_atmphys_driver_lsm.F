@@ -505,7 +505,7 @@
     !seaice thickness.
     do j = jts,jte
     do i = its,ite
-       albsi_p(i,j)    = sfc_albedo_seaice(i)
+       albsi_p(i,j)    = seaice_albedo_default
        icedepth_p(i,j) = seaice_thickness_default
        snowsi_p(i,j)   = seaice_snowdepth_min
     enddo
