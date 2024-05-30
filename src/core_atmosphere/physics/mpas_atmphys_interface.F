@@ -497,6 +497,10 @@
  real(kind=RKIND),dimension(:,:),pointer  :: re_cloud,re_ice,re_snow
  real(kind=RKIND),dimension(:,:,:),pointer:: scalars
 
+! MW added for ITM   
+ logical, pointer :: config_tend
+ real(kind=RKIND), dimension(:,:), pointer :: qv_mp_tend    
+
 !local variables:
  integer:: i,k,j
 
@@ -537,6 +541,13 @@
  qc   => scalars(index_qc,:,:)
  qr   => scalars(index_qr,:,:)
 
+! MW on ITM --  MC added  
+ call mpas_pool_get_config(configs, 'config_tend', config_tend)    
+
+ if (config_tend) then       ! MC added! 
+    call mpas_pool_get_array(diag, 'qv_mp_tend', qv_mp_tend) 
+ end if
+
 !initialize variables needed in the cloud microphysics schemes:
  do j = jts, jte
  do k = kts, kte
@@ -554,6 +565,11 @@
     z_p(i,k,j)    = zgrid(k,i)
     dz_p(i,k,j)   = zgrid(k+1,i) - zgrid(k,i)
     w_p(i,k,j)    = w(k,i)
+
+    ! MW on ITM  -- MC added
+    if (config_tend) then
+       qv_mp_tend(k,i) = qv(k,i)   ! save qv before call to microphysics    
+    endif
  enddo
  enddo
  enddo
@@ -638,12 +654,17 @@
  real(kind=RKIND),dimension(:,:),pointer  :: zz,exner,exner_b,pressure_b,rtheta_p,rtheta_b
  real(kind=RKIND),dimension(:,:),pointer  :: rho_zz,theta_m,pressure_p
  real(kind=RKIND),dimension(:,:),pointer  :: rt_diabatic_tend
- real(kind=RKIND),dimension(:,:),pointer  :: dtheta_dt_mp
+ real(kind=RKIND),dimension(:,:),pointer  :: dtheta_dt_mp                              ! MC note: this eventually should be removed    
  real(kind=RKIND),dimension(:,:),pointer  :: qv,qc,qr,qi,qs,qg
  real(kind=RKIND),dimension(:,:),pointer  :: ni,nr
  real(kind=RKIND),dimension(:,:),pointer  :: rainprod,evapprod
  real(kind=RKIND),dimension(:,:),pointer  :: re_cloud,re_ice,re_snow
  real(kind=RKIND),dimension(:,:,:),pointer:: scalars
+
+! MW on ITM: accumulating theta diabatic tendency term  MC added
+ logical, pointer :: config_tend, config_pv_tend  
+ real(kind=RKIND),dimension(:,:),pointer  :: acc_th_tend_diabatic 
+ real(kind=RKIND),dimension(:,:),pointer  :: qv_mp_tend, acc_qv_mp_tend                      
 
 !local variables:
  integer:: icount
@@ -693,6 +714,29 @@
 
  call mpas_pool_get_array(tend,'rt_diabatic_tend',rt_diabatic_tend)
 
+! MW on ITM                                               MC ADDED
+ call mpas_pool_get_config(configs, 'config_tend', config_tend)
+
+ if (config_tend) then
+    call mpas_pool_get_array(diag,'acc_th_tend_diabatic', acc_th_tend_diabatic)
+    call mpas_pool_get_array(diag,'qv_mp_tend', qv_mp_tend)
+    call mpas_pool_get_array(diag,'acc_qv_mp_tend', acc_qv_mp_tend)
+ else
+    allocate(acc_th_tend_diabatic, MOLD=rt_diabatic_tend)
+    allocate(qv_mp_tend, MOLD=rt_diabatic_tend)
+    allocate(acc_qv_mp_tend, MOLD=rt_diabatic_tend)
+ end if
+
+ ! MC -- adding config here so code won't break before other mods; dtheta_dt_mp will be removed from this section eventually
+ call mpas_pool_get_config(configs, 'config_pv_tend', config_pv_tend)
+
+ if (config_pv_tend) then
+    call mpas_pool_get_array(diag,'dtheta_dt_mp', dtheta_dt_mp)      ! MC note -- this eventually should be removed
+ else
+     allocate(dtheta_dt_mp, MOLD=rt_diabatic_tend)
+ end if
+
+
 !update variables needed in the dynamical core:
  do j = jts,jte
  do k = kts,kte
@@ -701,7 +745,9 @@
     !initializes tendency of coupled potential temperature potential temperature, and
     !potential temperature heating rate from microphysics:
     rt_diabatic_tend(k,i) = theta_m(k,i)
-    dtheta_dt_mp(k,i)     = theta_m(k,i)/(1._RKIND+rvord*qv(k,i))
+    dtheta_dt_mp(k,i)     = theta_m(k,i)/(1._RKIND+rvord*qv(k,i))    ! MC note -- this was changed in my code and ultimately removed;
+                                                                     ! should eventually be removed
+
 
     !updates water vapor, cloud liquid water, rain mixing ratios, modified potential temperature,
     !tendency of coupled potential temperature, and potential temperature heating rate from microphysics:
@@ -711,7 +757,8 @@
 
     theta_m(k,i) = th_p(i,k,j) * (1._RKIND+rvord*qv_p(i,k,j))
     rt_diabatic_tend(k,i) = (theta_m(k,i) - rt_diabatic_tend(k,i))/dt_dyn
-    dtheta_dt_mp(k,i)     = (theta_m(k,i)/(1._RKIND+rvord*qv(k,i))-dtheta_dt_mp(k,i))/(dt_dyn)
+    dtheta_dt_mp(k,i)     = (theta_m(k,i)/(1._RKIND+rvord*qv(k,i))-dtheta_dt_mp(k,i))/(dt_dyn)    ! MC note -- this was changed in my code and ultimately removed;
+                                                                                                  ! should eventually be removed
 
     !density-weighted perturbation potential temperature:
     rtheta_p(k,i) = rho_zz(k,i) * theta_m(k,i) - rtheta_b(k,i)
@@ -722,6 +769,13 @@
     !pertubation pressure:
     pressure_p(k,i) = zz(k,i)*R_d*(exner(k,i)*rtheta_p(k,i) &
                     + (exner(k,i)-exner_b(k,i))*rtheta_b(k,i))
+
+ 
+    ! MW on ITM: flux version MC ADDED
+    if (config_tend) then
+       acc_th_tend_diabatic(k,i) = acc_th_tend_diabatic(k,i) + rt_diabatic_tend(k,i) 
+       acc_qv_mp_tend(k,i) = acc_qv_mp_tend(k,i) + ( qv(k,i) - qv_mp_tend(k,i))/dt_dyn  
+    end if    
 
  enddo
  enddo
@@ -790,6 +844,18 @@
     case default
 
  end select microp_select_init
+
+ if (.not. config_tend) then
+     deallocate(acc_th_tend_diabatic) 
+     deallocate(qv_mp_tend) 
+     deallocate(acc_qv_mp_tend) 
+ end if
+
+! MC adding for now 
+ if (.not. config_pv_tend) then
+    deallocate(dtheta_dt_mp)
+ end if
+
 
  end subroutine microphysics_to_MPAS
 
