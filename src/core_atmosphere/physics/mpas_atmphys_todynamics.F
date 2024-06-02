@@ -49,6 +49,8 @@
 !   Laura D. Fowler (laura@ucar.edu) / 2016-10-28.
 ! * Added support for initial tendency diagnostics package variables and timers  
 !   May Wong (mwong@ucar.edu) and Manda Chasteen (chasteen@ucar.edu) / 2024-05-29      
+! * Removed tend_u_phys calculation since it's no longer needed for PV tendency calculations
+!   Manda Chasteen (chasteen@ucar.edu) / 2024-05-31        
 
  !
  ! Abstract interface for routine used to communicate halos of fields
@@ -113,13 +115,13 @@
  real(kind=RKIND),dimension(:,:),pointer:: rthblten,rqvblten,rqcblten, &
                                            rqiblten,rqsblten,rublten,rvblten
  real(kind=RKIND),dimension(:,:),pointer:: rniblten
- real(kind=RKIND),dimension(:,:),pointer:: rubldiff, rvbldiff                ! MW on ITM: GWDO; MC added                                   
+ real(kind=RKIND),dimension(:,:),pointer:: rubldiff, rvbldiff                ! MW on ITM: GWDO
  real(kind=RKIND),dimension(:,:),pointer:: rthcuten,rqvcuten,rqccuten, &
                                            rqrcuten,rqicuten,rqscuten, &
                                            rucuten,rvcuten
  real(kind=RKIND),dimension(:,:),pointer:: rthratenlw,rthratensw                                    
  
- real(kind=RKIND),dimension(:,:),pointer:: tend_u_phys !nick           ! MC : no longer needed for PV; remove     
+ !real(kind=RKIND),dimension(:,:),pointer:: tend_u_phys !nick           ! MC : no longer needed for PV tendencies     
 
  real(kind=RKIND),dimension(:,:),pointer  :: tend_theta,tend_theta_euler,tend_u
  real(kind=RKIND),dimension(:,:,:),pointer:: tend_scalars
@@ -154,7 +156,7 @@
  call mpas_pool_get_array(state, 'rho_zz', mass, 2)
  call mpas_pool_get_array(diag , 'rho_edge', mass_edge)
 
- call mpas_pool_get_array(diag , 'tend_u_phys', tend_u_phys) !nick    ! MC -- need to remove
+ !call mpas_pool_get_array(diag , 'tend_u_phys', tend_u_phys) !nick    ! MC - no longer needed for PV tendencies
 
  call mpas_pool_get_dimension(state, 'index_qv', index_qv)
  call mpas_pool_get_dimension(state, 'index_qc', index_qc)
@@ -220,8 +222,8 @@
  tend_rho_physics(:,:) = 0._RKIND       ! NB: rho tendency is not currently supplied by physics, but this
                                         !     field may be later filled with IAU or other tendencies
 
- ! tend_u_phys(:,:) = 0._RKIND          ! MC: this fix was needed because tend_u_phys and tend_u_diff accumulate in PV code;
-                                        ! will no longer be necessary once this var is removed   
+ ! tend_u_phys(:,:) = 0._RKIND          ! MC: this fix was needed because tend_u_phys and tend_u_diff accumulated in PV code;
+                                        ! no longer necessary because no longer used in PV tendency calculations  
 
  !
  ! In case some variables are not allocated due to their associated packages,
@@ -274,7 +276,7 @@
                            tend_th, tend_scalars, mass, rthblten, rqvblten, rqcblten, rqiblten, rqsblten, rniblten, &
                            rthcuten, rqvcuten, rqccuten, rqrcuten, rqicuten, rqscuten, &
                            rthratenlw, rthratensw, &
-                           tend_u_phys, &           ! MC: tend_u_phys is still here but needs to eventually be removed
+                           !tend_u_phys, &           ! MC: commenting tend_u_phys but can be fully removed
                            theta_m, scalars, &
                            tend_rtheta_physics, &
                            tend_theta_euler, &
@@ -352,7 +354,7 @@
                                  tend_th, tend_scalars, mass, rthblten, rqvblten, rqcblten, rqiblten, rqsblten, rniblten, &
                                  rthcuten, rqvcuten, rqccuten, rqrcuten, rqicuten, rqscuten, &
                                  rthratenlw, rthratensw, &
-                                 tend_u_phys, &
+                                 !tend_u_phys, &
                                  theta_m, scalars, tend_theta, tend_theta_euler, &
                                  exchange_halo_group &
                                 )
@@ -399,7 +401,7 @@
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rqscuten
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rthratenlw
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rthratensw
-    real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: tend_u_phys           ! MC - eventually remove
+    !real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: tend_u_phys           ! MC - eventually remove
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta_m
     real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: tend_theta
@@ -452,7 +454,7 @@
           call tend_toEdges(block,mesh,rublten,rvblten,rublten_Edge)
 
           !MGD for PV budget? should a similar line be in the cumulus section below?
-          tend_u_phys(1:nVertLevels,1:nEdges) = rublten_Edge(1:nVertLevels,1:nEdges)         ! MC eventually needs to be removed 
+          !tend_u_phys(1:nVertLevels,1:nEdges) = rublten_Edge(1:nVertLevels,1:nEdges)         ! MC can be removed 
        end if
 
        do i = 1, nEdgesSolve
@@ -520,8 +522,8 @@
                  call exchange_halo_group(block % domain, 'physics:cuten')
                  call tend_toEdges(block,mesh,rucuten,rvcuten,rucuten_Edge)
                  
-                 tend_u_phys(1:nVertLevels,1:nEdges) = tend_u_phys(1:nVertLevels,1:nEdges) &        ! MC -- needs to be removed 
-                                                     + rucuten_Edge(1:nVertLevels,1:nEdges)
+                 !tend_u_phys(1:nVertLevels,1:nEdges) = tend_u_phys(1:nVertLevels,1:nEdges) &        ! MC -- can be removed 
+                 !                                    + rucuten_Edge(1:nVertLevels,1:nEdges)
               end if
               do i = 1, nEdgesSolve
               do k  = 1, nVertLevels
