@@ -132,7 +132,8 @@
 !   Laura D. Fowler (laura@ucar.edu) / 2024-02-14.
 ! * added and modified variables needed to run the MYNN PBL scheme using the sourcecode from WRF version 4.6.
 !   Laura D. Fowler (laura@ucar.edu) / 2024-02-18.
-
+! * added temporary variables for Thompson process tendencies for PV microphysics tendency diagnostics
+!   Manda Chasteen (chasteen@ucar.edu) / 2024-06-01      
 
 !=================================================================================================================
 !wrf-variables:these variables are needed to keep calls to different physics parameterizations
@@ -286,7 +287,13 @@
     recloud_p,        &!
     reice_p,          &!
     resnow_p,         &!
-    refl10cm_p         !
+    refl10cm_p,        &!
+    tend_theta_mp_evap_cw_p,    &!  MC added for PV microphysics process tendencies (K/s)
+    tend_theta_mp_evap_rw_p,    &!  MC added for PV microphysics process tendencies (K/s)
+    tend_theta_mp_depo_ice_p,   &!  MC added for PV microphysics process tendencies (K/s)
+    tend_theta_mp_frez_ice_p,   &!  MC added for PV microphysics process tendencies (K/s)
+    tend_theta_mp_melt_ice_p     !  MC added for PV microphysics process tendencies (K/s)
+
 
 !=================================================================================================================
 !... variables and arrays related to parameterization of convection:

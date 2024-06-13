@@ -12,8 +12,17 @@
 !   * in subroutine mp_gt_driver, moved the initialization of variables Nt_c and mu_c
 !     before initialization of local mixing ratios and number concentrations.
 !     Laura D. Fowler (lara@ucar.edu) / 2916-12-30.
-
-
+!
+!  * Added the following variables to store the microphysics heating tendencies
+!     for individual processes to be used with the pv_diagnostics.F code
+!     Manda Chasteen (chasteen@ucar.edu) / 7 March 2023      
+!    
+!     tend_theta_mp_evap_cw: Net potential temperature heating rate from cloud water condensation and evaporation
+!     tend_theta_mp_evap_rw: Potential temperature heating rate from rain water evaporation
+!     tend_theta_mp_depo_ice: Net potential temperature heating rate from deposition and sublimation of all ice hydrometeors
+!     tend_theta_mp_melt_ice: Potential temperature heating rate from melting of all ice hydrometeors
+!     tend_theta_mp_frez_ice: Potential temperature heating rate from freezing/riming of all ice hydrometeors
+!
 !+---+-----------------------------------------------------------------+
 !.. This subroutine computes the moisture tendencies of water vapor,
 !.. cloud droplets, rain, cloud ice (pristine), snow, and graupel.
@@ -989,8 +998,12 @@
                               re_cloud, re_ice, re_snow,              &
                               has_reqc, has_reqi, has_reqs,           &
 #if defined(mpas)
-                              ntc,muc,rainprod,evapprod, &
-#endif
+                              ntc,muc,rainprod,evapprod,                        &
+                              tend_theta_mp_evap_cw, tend_theta_mp_evap_rw,     &     ! MC added 
+                              tend_theta_mp_depo_ice, tend_theta_mp_melt_ice,   &     ! MC added  
+                              tend_theta_mp_frez_ice,                           &     ! MC added 
+                              istep,                     &             ! MC -- added for tendency initialization  
+#endif 
                               ids,ide, jds,jde, kds,kde, &             ! domain dims
                               ims,ime, jms,jme, kms,kme, &             ! memory dims
                               its,ite, jts,jte, kts,kte)               ! tile dims
@@ -1020,6 +1033,14 @@
                           ntc,muc
       REAL, DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT):: &
                           rainprod,evapprod
+
+      REAL, DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT)::           &     ! MC added 
+                          tend_theta_mp_evap_cw, tend_theta_mp_evap_rw,     &     ! MC added 
+                          tend_theta_mp_depo_ice, tend_theta_mp_melt_ice,   &     ! MC added 
+                          tend_theta_mp_frez_ice                                  ! MC added  
+
+      INTEGER, INTENT(IN):: istep
+
       REAL, DIMENSION(ims:ime, kms:kme, jms:jme), INTENT(INOUT), OPTIONAL:: &
                           refl_10cm
 #else
@@ -1038,6 +1059,12 @@
 #if defined(mpas)
       REAL, DIMENSION(kts:kte):: &
                           rainprod1d, evapprod1d
+
+      REAL, DIMENSION(kts:kte):: &
+                          tend_temp_mp_evap_cw_1d, tend_temp_mp_evap_rw_1d,   &  ! MC added 
+                          tend_temp_mp_depo_ice_1d, tend_temp_mp_melt_ice_1d, &  ! MC added  
+                          tend_temp_mp_frez_ice_1d                               ! MC added 
+
 #endif
       REAL, DIMENSION(its:ite, jts:jte):: pcp_ra, pcp_sn, pcp_gr, pcp_ic
       REAL:: dt, pptrain, pptsnow, pptgraul, pptice
@@ -1102,6 +1129,17 @@
          mp_debug(i:i) = char(0)
       enddo
 
+#if defined(mpas)
+      ! MC  -- if istep = 1, initialize tendencies as zero
+      if (istep .eq. 1) then
+         tend_theta_mp_evap_cw(:,:,:)  = 0.0
+         tend_theta_mp_evap_rw(:,:,:)  = 0.0
+         tend_theta_mp_depo_ice(:,:,:) = 0.0
+         tend_theta_mp_frez_ice(:,:,:) = 0.0
+         tend_theta_mp_melt_ice(:,:,:) = 0.0
+      end if
+#endif
+
 !     if (.NOT. is_aerosol_aware .AND. PRESENT(nc) .AND. PRESENT(nwfa)  &
 !               .AND. PRESENT(nifa) .AND. PRESENT(nwfa2d)) then
 !        write(mp_debug,*) 'WARNING, nc-nwfa-nifa-nwfa2d present but is_aerosol_aware is FALSE'
@@ -1164,6 +1202,9 @@
                       pptrain, pptsnow, pptgraul, pptice, &
 #if defined(mpas)
                       rainprod1d, evapprod1d, &
+                      tend_temp_mp_evap_cw_1d, tend_temp_mp_evap_rw_1d,   &  ! MC added 
+                      tend_temp_mp_depo_ice_1d, tend_temp_mp_melt_ice_1d, &  ! MC added  
+                      tend_temp_mp_frez_ice_1d, &                            ! MC added 
 #endif
                       kts, kte, dt, i, j)
 
@@ -1212,6 +1253,15 @@
 #if defined(mpas)
             rainprod(i,k,j) = rainprod1d(k)
             evapprod(i,k,j) = evapprod1d(k)
+
+            ! MC added below. Tendencies calculated in mp_thompson are temperature tendencies, so 
+            ! need to convert to potential temperature tendency by dividing by exner function
+            ! and add to potential temperature tendencies already calculated in the case of n_microp > 1 
+            tend_theta_mp_evap_cw(i,k,j)  = tend_theta_mp_evap_cw(i,k,j)  + tend_temp_mp_evap_cw_1d(k)/pii(i,k,j)
+            tend_theta_mp_evap_rw(i,k,j)  = tend_theta_mp_evap_rw(i,k,j)  + tend_temp_mp_evap_rw_1d(k)/pii(i,k,j)
+            tend_theta_mp_depo_ice(i,k,j) = tend_theta_mp_depo_ice(i,k,j) + tend_temp_mp_depo_ice_1d(k)/pii(i,k,j)
+            tend_theta_mp_melt_ice(i,k,j) = tend_theta_mp_melt_ice(i,k,j) + tend_temp_mp_melt_ice_1d(k)/pii(i,k,j)
+            tend_theta_mp_frez_ice(i,k,j) = tend_theta_mp_frez_ice(i,k,j) + tend_temp_mp_frez_ice_1d(k)/pii(i,k,j)
 #endif
             if (qc1d(k) .gt. qc_max) then
              imax_qc = i
@@ -1359,7 +1409,10 @@
                           pptrain, pptsnow, pptgraul, pptice, &
 #if defined(mpas)
                           rainprod, evapprod, &
-#endif
+                          tend_temp_mp_evap_cw_1d,tend_temp_mp_evap_rw_1d,   &     ! MC added 
+                          tend_temp_mp_depo_ice_1d,tend_temp_mp_melt_ice_1d, &     ! MC added  
+                          tend_temp_mp_frez_ice_1d,                          &
+#endif                           
                           kts, kte, dt, ii, jj)
 
       implicit none
@@ -1375,6 +1428,11 @@
 #if defined(mpas)
       REAL, DIMENSION(kts:kte), INTENT(INOUT):: &
                           rainprod, evapprod
+
+      REAL, DIMENSION(kts:kte), INTENT(INOUT):: &
+                          tend_temp_mp_evap_cw_1d,tend_temp_mp_evap_rw_1d,   &     ! MC added 
+                          tend_temp_mp_depo_ice_1d,tend_temp_mp_melt_ice_1d, &     ! MC added  
+                          tend_temp_mp_frez_ice_1d                                 ! MC added                     
 #endif
 
 !..Local variables
@@ -1580,6 +1638,15 @@
       do k = kts, kte
          rainprod(k) = 0.
          evapprod(k) = 0.
+
+        ! MC added: MP scheme is an adjustment process that incrementally updates state variables over n_microp steps
+        ! need to zero these out at beginning of each step
+         tend_temp_mp_evap_cw_1d(k)  = 0.    
+         tend_temp_mp_evap_rw_1d(k)  = 0.   
+         tend_temp_mp_depo_ice_1d(k) = 0.  
+         tend_temp_mp_melt_ice_1d(k) = 0.  
+         tend_temp_mp_frez_ice_1d(k) = 0.  
+
       enddo
 #endif
 
@@ -2762,13 +2829,40 @@
                                      + prg_rcs(k) + prs_rcs(k) &
                                      + prr_rci(k) + prg_rcg(k)) &
                        )*orho * (1-IFDRY)
+#if defined(mpas) 
+           tend_temp_mp_depo_ice_1d(k) = tend_temp_mp_depo_ice_1d(k) &       ! MC added: individual temperature tendency from sublimation/deposition of cloud ice, snow, and graupel
+                     + (lsub*ocp(k)*(pri_inu(k) + pri_ide(k) &         
+                                     + prs_ide(k) + prs_sde(k) &
+                                     + prg_gde(k) + pri_iha(k)) &
+                       )*orho * (1-IFDRY)
+
+           tend_temp_mp_frez_ice_1d(k) = tend_temp_mp_frez_ice_1d(k) &       ! MC added: individual temperature tendency from freezing/riming  
+                     + (lfus2*ocp(k)*(pri_wfz(k) + pri_rfz(k) &          
+                                     + prg_rfz(k) + prs_scw(k) &
+                                     + prg_scw(k) + prg_gcw(k) &
+                                     + prg_rcs(k) + prs_rcs(k) &
+                                     + prr_rci(k) + prg_rcg(k)) &
+                       )*orho * (1-IFDRY) 
+#endif
+
          else
           tten(k) = tten(k) &
                     + ( lfus*ocp(k)*(-prr_sml(k) - prr_gml(k) &
                                      - prr_rcg(k) - prr_rcs(k)) &
-                      + lsub*ocp(k)*(prs_sde(k) + prg_gde(k)) &
+                      + lsub*ocp(k)*(prs_sde(k) + prg_gde(k)) &          ! temperature tendency from sublimation/deposition  
                        )*orho * (1-IFDRY)
-         endif
+
+#if defined(mpas)    
+          tend_temp_mp_melt_ice_1d(k) = tend_temp_mp_melt_ice_1d(k) &        ! MC added: individual temperature tendency from melting
+                  + (lfus*ocp(k)*(-prr_sml(k) - prr_gml(k) &
+                                   - prr_rcg(k) - prr_rcs(k)) &
+                     )*orho * (1-IFDRY)                          
+
+          tend_temp_mp_depo_ice_1d(k) = tend_temp_mp_depo_ice_1d(k) &        ! MC added: individual temperature tendency from sublimation/deposition of snow and graupel
+                    + (lsub*ocp(k)*(prs_sde(k) + prg_gde(k)) &          
+                       )*orho * (1-IFDRY)
+#endif
+        endif
 
       enddo
 
@@ -3046,6 +3140,12 @@
           ncten(k) = ncten(k) + pnc_wcd(k)
           nwfaten(k) = nwfaten(k) - pnc_wcd(k)
           tten(k) = tten(k) + lvap(k)*ocp(k)*prw_vcd(k)*(1-IFDRY)
+
+#if defined(mpas) 
+          tend_temp_mp_evap_cw_1d(k) = tend_temp_mp_evap_cw_1d(k) &           ! MC added: individual temperature tendency from evap/cond of cloud droplets
+                    + (lvap(k)*ocp(k)*prw_vcd(k))*(1-IFDRY)                   ! Note: no orho factor here because it's incorporated into prw_vcd above        
+#endif
+
           rc(k) = MAX(R1, (qc1d(k) + DT*qcten(k))*rho(k))
           nc(k) = MAX(2., (nc1d(k) + DT*ncten(k))*rho(k))
           if (.NOT. is_aerosol_aware) nc(k) = Nt_c
@@ -3128,6 +3228,11 @@
           nrten(k) = nrten(k) - pnr_rev(k)
           nwfaten(k) = nwfaten(k) + pnr_rev(k)
           tten(k) = tten(k) - lvap(k)*ocp(k)*prv_rev(k)*(1-IFDRY)
+         
+#if defined(mpas) 
+          tend_temp_mp_evap_rw_1d(k) = tend_temp_mp_evap_rw_1d(k) &         ! MC added: individual temperature tendency from rain evaporation
+                  - lvap(k)*ocp(k)*prv_rev(k)*(1-IFDRY)                     ! note: no orho factor here because it's included in prv_rev above
+#endif
 
           rr(k) = MAX(R1, (qr1d(k) + DT*qrten(k))*rho(k))
           qv(k) = MAX(1.E-10, qv1d(k) + DT*qvten(k))
@@ -3468,6 +3573,11 @@
           qiten(k) = qiten(k) - xri*odt
           niten(k) = -ni1d(k)*odt
           tten(k) = tten(k) - lfus*ocp(k)*xri*odt*(1-IFDRY)
+
+#if defined(mpas) 
+          tend_temp_mp_melt_ice_1d(k) = tend_temp_mp_melt_ice_1d(k) &      ! MC added: individual temperature tendency from melting cloud ice
+                  - lfus*ocp(k)*xri*odt*(1-IFDRY)                          ! note: xri includes 1/rho factor through qi1d(k) + qiten(k)*DT                
+#endif
          endif
 
          xrc = MAX(0.0, qc1d(k) + qcten(k)*DT)
@@ -3479,6 +3589,12 @@
           qcten(k) = qcten(k) - xrc*odt
           ncten(k) = ncten(k) - xnc*odt
           tten(k) = tten(k) + lfus2*ocp(k)*xrc*odt*(1-IFDRY)
+
+#if defined(mpas) 
+          tend_temp_mp_frez_ice_1d(k) = tend_temp_mp_frez_ice_1d(k) &      ! MC added: individual temperature tendency from freezing cloud drops
+                  + lfus2*ocp(k)*xrc*odt*(1-IFDRY)                         ! note: xrc includes 1/rho factor 
+
+#endif
          endif
       enddo
       endif
