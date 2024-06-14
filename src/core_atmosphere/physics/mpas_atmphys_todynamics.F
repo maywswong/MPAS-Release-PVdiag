@@ -121,8 +121,6 @@
                                            rucuten,rvcuten
  real(kind=RKIND),dimension(:,:),pointer:: rthratenlw,rthratensw                                    
  
- !real(kind=RKIND),dimension(:,:),pointer:: tend_u_phys !nick           ! MC : no longer needed for PV tendencies     
-
  real(kind=RKIND),dimension(:,:),pointer  :: tend_theta,tend_theta_euler,tend_u
  real(kind=RKIND),dimension(:,:,:),pointer:: tend_scalars
  real(kind=RKIND):: coeff
@@ -155,8 +153,6 @@
  call mpas_pool_get_array(state, 'scalars', scalars, 1)
  call mpas_pool_get_array(state, 'rho_zz', mass, 2)
  call mpas_pool_get_array(diag , 'rho_edge', mass_edge)
-
- !call mpas_pool_get_array(diag , 'tend_u_phys', tend_u_phys) !nick    ! MC - no longer needed for PV tendencies
 
  call mpas_pool_get_dimension(state, 'index_qv', index_qv)
  call mpas_pool_get_dimension(state, 'index_qc', index_qc)
@@ -221,10 +217,6 @@
  tend_rtheta_physics(:,:) = 0._RKIND
  tend_rho_physics(:,:) = 0._RKIND       ! NB: rho tendency is not currently supplied by physics, but this
                                         !     field may be later filled with IAU or other tendencies
-
- ! tend_u_phys(:,:) = 0._RKIND          ! MC: this fix was needed because tend_u_phys and tend_u_diff accumulated in PV code;
-                                        ! no longer necessary because no longer used in PV tendency calculations  
-
  !
  ! In case some variables are not allocated due to their associated packages,
  ! we need to make their pointers associated here to avoid triggering run-time
@@ -276,7 +268,6 @@
                            tend_th, tend_scalars, mass, rthblten, rqvblten, rqcblten, rqiblten, rqsblten, rniblten, &
                            rthcuten, rqvcuten, rqccuten, rqrcuten, rqicuten, rqscuten, &
                            rthratenlw, rthratensw, &
-                           !tend_u_phys, &           ! MC: commenting tend_u_phys but can be fully removed
                            theta_m, scalars, &
                            tend_rtheta_physics, &
                            tend_theta_euler, &
@@ -354,7 +345,6 @@
                                  tend_th, tend_scalars, mass, rthblten, rqvblten, rqcblten, rqiblten, rqsblten, rniblten, &
                                  rthcuten, rqvcuten, rqccuten, rqrcuten, rqicuten, rqscuten, &
                                  rthratenlw, rthratensw, &
-                                 !tend_u_phys, &
                                  theta_m, scalars, tend_theta, tend_theta_euler, &
                                  exchange_halo_group &
                                 )
@@ -401,7 +391,6 @@
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rqscuten
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rthratenlw
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: rthratensw
-    !real (kind=RKIND), dimension(nVertLevels,nEdges+1), intent(inout) :: tend_u_phys           ! MC - eventually remove
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(in) :: theta_m
     real (kind=RKIND), dimension(num_scalars,nVertLevels,nCells+1), intent(in) :: scalars
     real (kind=RKIND), dimension(nVertLevels,nCells+1), intent(inout) :: tend_theta
@@ -452,9 +441,6 @@
        if (rk_step == 1 .and. dynamics_substep == 1) then
           call exchange_halo_group(block % domain, 'physics:blten')
           call tend_toEdges(block,mesh,rublten,rvblten,rublten_Edge)
-
-          !MGD for PV budget? should a similar line be in the cumulus section below?
-          !tend_u_phys(1:nVertLevels,1:nEdges) = rublten_Edge(1:nVertLevels,1:nEdges)         ! MC can be removed 
        end if
 
        do i = 1, nEdgesSolve
@@ -521,9 +507,6 @@
               if (rk_step == 1 .and. dynamics_substep == 1) then
                  call exchange_halo_group(block % domain, 'physics:cuten')
                  call tend_toEdges(block,mesh,rucuten,rvcuten,rucuten_Edge)
-                 
-                 !tend_u_phys(1:nVertLevels,1:nEdges) = tend_u_phys(1:nVertLevels,1:nEdges) &        ! MC -- can be removed 
-                 !                                    + rucuten_Edge(1:nVertLevels,1:nEdges)
               end if
               do i = 1, nEdgesSolve
               do k  = 1, nVertLevels
