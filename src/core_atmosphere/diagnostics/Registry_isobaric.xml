@@ -16,7 +16,7 @@
         <!-- Levels are specified in mpas_isobaric_diagnostics.F -->
         <var name="iso_levels" type="real" dimensions="nIsoLevels" units="Pa"
              description="Levels for vertical interpolation to isobaric surfaces"
-             packages="isobaric"/> 
+             packages="isobaric;pv_isobaric"/> 
 
         <!-- Isobaric variables -->        
         <var name="temperature_isobaric" type="real" dimensions="nIsoLevels nCells Time" units="K"
@@ -66,7 +66,7 @@
         <!-- PV variables on isobaric levels - only activated if config_pv_isobaric = .true. --> 
         <var name="ertel_pv_isobaric" type="real" dimensions="nIsoLevels nCells Time" units="PVU"
              description="Ertel's potential vorticity vertically interpolated to isobaric levels"
-             packages="pv_isobaric"/>
+             packages="isobaric;pv_isobaric"/>
     
         <var name="depv_dt_lw_isobaric" type="real" dimensions="nIsoLevels nCells Time" units="PVU s^{-1}"
              description="Diabatic PV tendency from longwave radiation vertically interpolated to isobaric levels"
@@ -244,9 +244,11 @@
 
         <!-- Other variables -->
         <var name="mslp" type="real" dimensions="nCells Time" units="Pa"
-             description="Mean sea-level pressure"/>
+             description="Mean sea-level pressure"
+             packages="isobaric"/>
 
-        <var name="meanT_500_300"    type="real" dimensions="nCells Time" units="K"
-             description="Mean temperature in the 500-300 hPa layer"/>
+        <var name="meanT_500_300" type="real" dimensions="nCells Time" units="K"
+             description="Mean temperature in the 500-300 hPa layer"
+             packages="isobaric"/>
 
 </var_struct>
