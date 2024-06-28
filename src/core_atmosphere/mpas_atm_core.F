@@ -638,9 +638,11 @@ module atm_core
       call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='restart', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
 
       ! Also, for restart runs, avoid writing the initial history or diagnostics fields to avoid overwriting those from the preceding run
+      ! MC: added pvbudget stream here
       if (config_do_restart) then
          call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='output', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
          call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='diagnostics', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
+         call MPAS_stream_mgr_reset_alarms(domain % streamManager, streamID='pvbudget', direction=MPAS_STREAM_OUTPUT, ierr=ierr)
       end if
 
       call mpas_dmpar_get_time(diag_start_time)
@@ -662,10 +664,10 @@ module atm_core
       call mpas_timer_start('diagnostic_fields')
       call mpas_atm_diag_reset()
       !call mpas_atm_diag_update()
-      call mpas_atm_diag_update(domain, exchange_halo_group)   ! MC -- modified with halo inputs
+      call mpas_atm_diag_update(domain, exchange_halo_group)    ! MC -- modified with halo inputs
       call mpas_atm_diag_pv_init(domain, exchange_halo_group)   ! MC added -- call to initialize pv_scalar if activated   
       !call mpas_atm_diag_compute()
-      call mpas_atm_diag_compute(domain, exchange_halo_group)  ! MC -- modified with halo inputs
+      call mpas_atm_diag_compute(domain, exchange_halo_group)   ! MC -- modified with halo inputs
       call mpas_timer_stop('diagnostic_fields')
 
       call mpas_dmpar_get_time(diag_stop_time)
