@@ -576,16 +576,7 @@ module mpas_isobaric_diagnostics
         !--------------------------------------------------------------------
         ! Interpolate PV:
 
-      !  print *, 'ncells', nCells
-      !  print *, 'nVertLevels', nVertLevels
-      !  print *, 'pressure(10,10)', pressure(10,10)
-      !  print *, 'ertel_pv(10,10)', ertel_pv(10,10)
-      !  print *, 'ertel_pv_isobaric(10,10)', ertel_pv_isobaric(10,10)
-      !  print *, 'nIsolevels', nIsoLevels
-      !  print *, 'iso_levels(10)', iso_levels(10)
-
         call interp_field_cell_mass_levels(nCells, nVertLevels, pressure, ertel_pv, nIsoLevels, iso_levels, ertel_pv_isobaric) 
-        call mpas_log_write('did PV interp')
 
         if (allocated(pressure)) deallocate(pressure)
 
